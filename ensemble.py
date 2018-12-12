@@ -1,10 +1,10 @@
 from __future__ import print_function
-import pandas as pd
+
 from sklearn import svm
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler as scaler
 from sklearn import preprocessing
-import numpy as np
+
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 
@@ -49,64 +49,19 @@ def write_data(pred_y,filename):
         for i ,y in enumerate(pred_y,start=1):
             w.write('\n{},{}'.format(i,int(y)))
 
-#异常点检测：
-def outlier_detction(X):
-    # fit a Minimum Covariance Determinant (MCD) robust estimator to data
-    #robust_cov = MinCovDet().fit(X)
-    #y_pred_train = MinCovDet().predict(X)
-    # compare estimators learnt from the full data set with true parameters
-    #emp_cov = EmpiricalCovariance().fit(X)
-    csvFile2 = open('result.csv', 'wb')
-    writer = csv.writer(csvFile2)
-
-    clf = svm.OneClassSVM(nu=0.01, kernel="rbf", gamma=0.000001)
-    clf.fit(X)
-    y_pred_train = clf.predict(X)
-    print(y_pred_train[y_pred_train==-1].size)
-    for i in range(10000):
-        if y_pred_train[i]!=-1:
-           writer.writerow(X[i])
-
-
-#去掉异常点
-def delete(filename,i):
-    data = pd.read_csv(filename)
-    x = data.iloc[:, [0, 1, 2, 3, 4, 5]]
-    x = x.drop([i])
-
 #数据预处理：标准化
 def standarlizer(X_train):
     return preprocessing.scale(X_train)
 
-#数据预处理：非线性转化
-def quantiletransform(X_train,X_test):
-    quantile_transformer = preprocessing.QuantileTransformer(random_state=0)
-    X_train = quantile_transformer.fit_transform(X_train)
-    X_test = quantile_transformer.transform(X_test)
-    np.percentile(X_train[:, 0], [0, 25, 50, 75, 100])
-
-#确定svm模型及参数
-def model():
-    #return svm.SVC(decision_function_shape='ovo')0.282
-    #return svm.SVC(gamma=0.000001, kernel='rbf', C=10)0.666
-    #return svm.SVC(gamma=0.000001, kernel='rbf', C=100)
-    return svm.SVC(gamma=0.0000001, kernel='rbf', C=1000)
-    #return svm.SVC(gamma=0.00000001, kernel='rbf', C=10000)
-    #return svm.SVC(gamma='scale',decision_function_shape='ovr')
-
-#预测test数据标签
-def predict():
-    clf = model()
-    clf.fit(train_x, train_y)
-    pred_y = clf.predict(test_x)
-    write_data(pred_y,"predict")
-
-
 train_x, train_y = fetch_data('./train.csv')
 test_x = fetch_data('./test.csv',False)
-#k折交叉验证
-kfold = StratifiedKFold(n_splits=10)
-# #使用不同的模型
+train_x.drop("EEG",1)
+test_x.drop("Attribute6",1)
+# g = sns.heatmap(train_x[["SL","Time","BP","Circulation","HR","EEG"]].corr(),annot=True, fmt = ".2f", cmap = "coolwarm")
+# plt.show()
+# #k折交叉验证
+# kfold = StratifiedKFold(n_splits=10)
+# # #使用不同的模型
 # random_state = 2
 # classifiers = []
 # classifiers.append(SVC(gamma=0.0000001, kernel='rbf', C=1000))
@@ -201,14 +156,43 @@ RFC_best = RandomForestClassifier(bootstrap=False, class_weight=None, criterion=
             oob_score=False, random_state=None, verbose=0,
             warm_start=False)
 
-Bag_best = BaggingClassifier(base_estimator=DecisionTreeClassifier(), bootstrap=True, bootstrap_features=False,
-                             max_features=1.0, max_samples=1.0, n_estimators=10, n_jobs=1, oob_score=False)
+
+# Bagging Parameters tunning
+Bag = BaggingClassifier()
+
+
+## Search grid for optimal parameters
+# bag_param_grid = {
+#               "base_estimator": [None],
+#               "max_features": [1, 3, 6],
+#               "max_samples": [1, 2, 3, 10],
+#               "bootstrap": [True],
+#               "n_estimators" :[10, 100, 300],
+#               "verbose": [0, 10, 100],
+#               "bootstrap_features": [False,True],
+#               "oob_score" : [False,True],
+#               "warm_start" : [False]
+#                }
+#
+#
+# gsBag = GridSearchCV(Bag,param_grid = bag_param_grid, cv=kfold, scoring="accuracy", n_jobs= 4, verbose = 1)
+#
+# gsBag.fit(train_x, train_y)
+#
+# Bag_best = gsBag.best_estimator_
+#
+# print(RFC_best)
+#
+# # Best score
+# print(gsBag.best_score_)
+
+Bag_best = BaggingClassifier(base_estimator=DecisionTreeClassifier())
 
 #outlier_detction(train_x)
 #quantiletransform(train_x,test_x)
 #predict()
 
-votingC = VotingClassifier(estimators=[('rfc', RFC_best), ('extc', ExtC_best),('bag', Bag_best)], voting='soft', n_jobs=4)
+votingC = VotingClassifier(estimators=[('rfc', RFC_best), ('extc', ExtC_best)], voting='soft', n_jobs=4)
 standarlizer(train_x)
 standarlizer(test_x)
 votingC.fit(train_x,train_y)
